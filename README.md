@@ -1,6 +1,6 @@
 # Esper Tool
 
-Manage Esper device fleets.
+Helper to deply apps for esper managed devices.
 
 passcode: K-16332509
 
