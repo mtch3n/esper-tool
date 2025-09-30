@@ -1,13 +1,19 @@
 # Esper Tool
 
-Helper to deply apps for esper managed devices.
+A Kaidu deployment tool that streamlines app distribution to Esper-managed Android devices. This intuitive web-based tool provides a step-by-step interface to deploy, enable, and launch applications across multiple devices simultaneously, reducing deployment time through direct Esper API integration.
 
-passcode: K-16332509
+This app is built with
 
-## Development
+- **Next.js** 15
+- **TypeScript** 5.9
+- **Tailwind CSS** 4
+- **pnpm** 10.12.4
+
+## Setup
 
 ```bash
-pnpm run dev
+pnpm install
+pnpm run dev # Then open localhost:3000/setup
 ```
 
-then open localhost:3000/setup
+
