@@ -3,13 +3,14 @@
 import {
   CheckCircle,
   FileCheck,
-  Key,
-  Rocket,
   RotateCcw,
+  Settings,
   Smartphone,
   Upload,
+  AlertTriangle,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,18 +22,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AppStep } from "@/components/wizard/app-step"
-import { CredentialsStep } from "@/components/wizard/credentials-step"
 import { DevicesStep } from "@/components/wizard/devices-step"
+import { OptionsStep } from "@/components/wizard/options-step"
 import { ResultsStep } from "@/components/wizard/results-step"
 import { SummaryStep } from "@/components/wizard/summary-step"
 import { useCredentials } from "@/hooks/use-credentials"
-import { useDevices } from "@/hooks/use-devices"
-import type { EsperApplication } from "@/lib/esper-api"
+import { useDevices } from "@/hooks/use-esper-queries"
+import type { EsperApplication, EsperDevice } from "@/lib/esper-api"
 
-type WizardStep = "credentials" | "devices" | "app" | "summary" | "results"
+type WizardStep = "devices" | "app" | "options" | "summary" | "results"
 
 interface WizardData {
   credentials: {
@@ -46,7 +57,8 @@ interface WizardData {
 }
 
 export default function WizardPage() {
-  const [currentStep, setCurrentStep] = useState<WizardStep>("credentials")
+  const searchParams = useSearchParams()
+  const [currentStep, setCurrentStep] = useState<WizardStep>("devices")
   const [selectedDevices, setSelectedDevices] = useState<string[]>([])
   const [selectedApplications, setSelectedApplications] = useState<string[]>([])
   const [selectedApplicationsData, setSelectedApplicationsData] = useState<
@@ -56,6 +68,7 @@ export default function WizardPage() {
     Map<string, string>
   >(new Map())
   const [launchApps, setLaunchApps] = useState<string[]>([])
+  const [rebootAfterDeploy, setRebootAfterDeploy] = useState<boolean>(false)
   const [results, setResults] = useState("")
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [confirmText, setConfirmText] = useState("")
@@ -64,6 +77,8 @@ export default function WizardPage() {
   const [showShakeAnimation, setShowShakeAnimation] = useState(false)
   const [notConfirmed, setNotConfirmed] = useState<boolean | null>(null)
   const [isDeploymentComplete, setIsDeploymentComplete] = useState(false)
+  const [showOfflineAlert, setShowOfflineAlert] = useState(false)
+  const [offlineDevices, setOfflineDevices] = useState<string[]>([])
 
   const {
     credentials,
@@ -72,12 +87,11 @@ export default function WizardPage() {
     hasStoredCredentials,
   } = useCredentials()
   const {
-    devices,
-    loading: loadingDevices,
+    data: devices = [],
+    isLoading: loadingDevices,
     error: deviceError,
-    loadDevices,
-    clearError,
-  } = useDevices()
+    refetch: refetchDevices,
+  } = useDevices(credentials, hasStoredCredentials)
 
   // Listen for Ctrl+Alt key combinations
   useEffect(() => {
@@ -102,6 +116,41 @@ export default function WizardPage() {
     }
   }, [])
 
+  // Handle URL parameters for pre-selecting devices
+  useEffect(() => {
+    if (!searchParams) return
+
+    const deviceIds = searchParams.get("deviceIds")
+    if (deviceIds) {
+      const deviceIdArray = deviceIds.split(",").filter((id) => id.trim())
+      if (deviceIdArray.length > 0) {
+        setSelectedDevices(deviceIdArray)
+        // If devices are pre-selected via URL, auto-advance to app step
+        if (currentStep === "devices") {
+          setCurrentStep("app")
+        }
+      }
+    }
+  }, [searchParams, currentStep])
+
+  // Validate selected devices against available devices when devices are loaded
+  useEffect(() => {
+    if (devices.length > 0 && selectedDevices.length > 0) {
+      const availableDeviceIds = devices.map((device) => device.id)
+      const validSelectedDevices = selectedDevices.filter((id) =>
+        availableDeviceIds.includes(id),
+      )
+
+      // Update selected devices to only include valid ones
+      if (validSelectedDevices.length !== selectedDevices.length) {
+        setSelectedDevices(validSelectedDevices)
+      }
+    }
+  }, [devices, selectedDevices])
+
+  // Auto-load devices when credentials are available (React Query handles this automatically)
+  // No manual loading needed as the query will trigger when credentials change
+
   const handleDeviceToggle = (deviceId: string, checked: boolean) => {
     if (checked) {
       setSelectedDevices((prev) => [...prev, deviceId])
@@ -118,29 +167,47 @@ export default function WizardPage() {
   )
 
   const handleNext = async () => {
+    // Check for offline devices when leaving the devices step
+    if (currentStep === "devices") {
+      const offlineSelectedDevices = selectedDevices
+        .map(deviceId => devices.find(d => d.id === deviceId))
+        .filter((device): device is EsperDevice => {
+          if (!device) return false
+          if (!device.last_seen) return true
+
+          const lastSeenTime = new Date(device.last_seen).getTime()
+          const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000 // 30 minutes in milliseconds
+
+          return lastSeenTime <= thirtyMinutesAgo
+        })
+        .map(device => device.name || "Unnamed Device")
+
+      if (offlineSelectedDevices.length > 0) {
+        setOfflineDevices(offlineSelectedDevices)
+        setShowOfflineAlert(true)
+        return
+      }
+    }
+
     const steps: WizardStep[] = [
-      "credentials",
       "devices",
       "app",
+      "options",
       "summary",
       "results",
     ]
     const currentIndex = steps.indexOf(currentStep)
 
-    if (currentStep === "credentials" && currentIndex < steps.length - 1) {
-      // Load devices when moving from credentials to devices step
-      setCurrentStep(steps[currentIndex + 1])
-      await loadDevices(credentials)
-    } else if (currentIndex < steps.length - 1) {
+    if (currentIndex < steps.length - 1) {
       setCurrentStep(steps[currentIndex + 1])
     }
   }
 
   const handleBack = () => {
     const steps: WizardStep[] = [
-      "credentials",
       "devices",
       "app",
+      "options",
       "summary",
       "results",
     ]
@@ -173,16 +240,12 @@ export default function WizardPage() {
 
   const isStepComplete = () => {
     switch (currentStep) {
-      case "credentials":
-        return (
-          credentials.tenant_id &&
-          credentials.apiKey &&
-          credentials.enterprise_id
-        )
       case "devices":
         return selectedDevices.length > 0
       case "app":
         return selectedApplications.length > 0
+      case "options":
+        return true // Options step is always considered complete
       default:
         return true
     }
@@ -203,13 +266,32 @@ export default function WizardPage() {
     }
   }
 
+  // Handle proceeding with offline devices
+  const handleProceedWithOffline = () => {
+    setShowOfflineAlert(false)
+    setOfflineDevices([])
+
+    const steps: WizardStep[] = [
+      "devices",
+      "app",
+      "options",
+      "summary",
+      "results",
+    ]
+    const currentIndex = steps.indexOf(currentStep)
+
+    if (currentIndex < steps.length - 1) {
+      setCurrentStep(steps[currentIndex + 1])
+    }
+  }
+
+  // Handle canceling offline device selection
+  const handleCancelOfflineSelection = () => {
+    setShowOfflineAlert(false)
+    setOfflineDevices([])
+  }
+
   const stepConfig = [
-    {
-      key: "credentials",
-      title: "Credentials",
-      icon: Key,
-      description: "Enter your API credentials",
-    },
     {
       key: "devices",
       title: "Devices",
@@ -221,6 +303,12 @@ export default function WizardPage() {
       title: "App",
       icon: Upload,
       description: "Choose app to deploy",
+    },
+    {
+      key: "options",
+      title: "Options",
+      icon: Settings,
+      description: "Configure deployment options",
     },
     {
       key: "summary",
@@ -241,20 +329,6 @@ export default function WizardPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation Bar */}
-      <nav className="border-b border-gray-200 bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Rocket className="h-5 w-5 text-gray-900" />
-              <span className="text-lg font-medium text-gray-900">
-                Esper Setup Tool
-              </span>
-            </div>
-          </div>
-        </div>
-      </nav>
-
       <div className="p-6">
         <div className="mx-auto max-w-2xl">
           {/* Simple Progress Steps */}
@@ -304,23 +378,42 @@ export default function WizardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {currentStep === "credentials" && (
-                <CredentialsStep
-                  credentials={credentials}
-                  onUpdate={updateCredentials}
-                  onClearStored={clearStoredCredentials}
-                  hasStoredCredentials={hasStoredCredentials}
-                />
-              )}{" "}
               {currentStep === "devices" && (
-                <DevicesStep
-                  devices={devices}
-                  selectedDevices={selectedDevices}
-                  onDeviceToggle={handleDeviceToggle}
-                  loading={loadingDevices}
-                  error={deviceError}
-                  onRetry={() => loadDevices(credentials)}
-                />
+                <>
+                  {(!credentials.tenant_id ||
+                    !credentials.apiKey ||
+                    !credentials.enterprise_id) && (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                      <div className="flex">
+                        <div className="ml-3">
+                          <h3 className="text-sm font-medium text-amber-800">
+                            Credentials Required
+                          </h3>
+                          <div className="mt-2 text-sm text-amber-700">
+                            <p>
+                              Please configure your Esper API credentials in the{" "}
+                              <a
+                                href="/settings"
+                                className="font-medium underline hover:text-amber-600"
+                              >
+                                Settings
+                              </a>{" "}
+                              page before proceeding with device selection.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <DevicesStep
+                    devices={devices}
+                    selectedDevices={selectedDevices}
+                    onDeviceToggle={handleDeviceToggle}
+                    loading={loadingDevices}
+                    error={deviceError?.message || ""}
+                    onRetry={() => refetchDevices()}
+                  />
+                </>
               )}{" "}
               {currentStep === "app" && (
                 <AppStep
@@ -333,6 +426,14 @@ export default function WizardPage() {
                   credentials={credentials}
                 />
               )}
+              {currentStep === "options" && (
+                <OptionsStep
+                  selectedDevices={selectedDevices}
+                  devices={devices}
+                  rebootAfterDeploy={rebootAfterDeploy}
+                  onRebootAfterDeployChange={setRebootAfterDeploy}
+                />
+              )}
               {currentStep === "summary" && (
                 <SummaryStep
                   credentials={credentials}
@@ -340,6 +441,7 @@ export default function WizardPage() {
                   devices={devices}
                   selectedApplications={selectedApplications}
                   launchApps={launchApps}
+                  rebootAfterDeploy={rebootAfterDeploy}
                 />
               )}
               {currentStep === "results" && (
@@ -351,6 +453,7 @@ export default function WizardPage() {
                   launchApps={launchApps}
                   devices={devices}
                   credentials={credentials}
+                  rebootAfterDeploy={rebootAfterDeploy}
                   onDeploymentComplete={setIsDeploymentComplete}
                 />
               )}
@@ -361,7 +464,7 @@ export default function WizardPage() {
             <Button
               onClick={handleBack}
               disabled={
-                currentStep === "credentials" ||
+                currentStep === "devices" ||
                 (currentStep === "results" && !isDeploymentComplete)
               }
               variant="ghost"
@@ -380,7 +483,7 @@ export default function WizardPage() {
             ) : currentStep === "results" ? (
               <Button
                 onClick={() => {
-                  setCurrentStep("credentials")
+                  setCurrentStep("devices")
                   setIsDeploymentComplete(false)
                 }}
                 disabled={!isDeploymentComplete}
@@ -467,6 +570,41 @@ export default function WizardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Offline Device Alert Dialog */}
+      <AlertDialog open={showOfflineAlert} onOpenChange={setShowOfflineAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <AlertDialogTitle>Offline Devices Detected</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              The following devices haven't been seen in the last 30 minutes and may be offline:
+              <br /><br />
+              <ul className="list-disc list-inside text-sm text-gray-600">
+                {offlineDevices.map((deviceName, index) => (
+                  <li key={index}>{deviceName}</li>
+                ))}
+              </ul>
+              <br />
+              Deploying to offline devices may fail or cause unexpected behavior.
+              Do you want to proceed anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelOfflineSelection}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleProceedWithOffline}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              Proceed Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

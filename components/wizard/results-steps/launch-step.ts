@@ -63,6 +63,9 @@ export async function executeLaunchStep(
       }
     }
 
+    // Wait 15 seconds to allow apps to fully launch
+    await new Promise((resolve) => setTimeout(resolve, 15000))
+
     return {
       success: true,
       message: "No apps selected for launch",

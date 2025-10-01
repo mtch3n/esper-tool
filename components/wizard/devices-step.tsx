@@ -52,46 +52,13 @@ const getAndroidSdkLevel = (osVersion: string): string => {
 
 import { useState } from "react"
 
-// Device status mapping
-const DEVICE_STATUS_MAP: Record<number, { label: string; color: string }> = {
-  0: { label: "Unspecified", color: "bg-gray-300 text-gray-700" },
-  1: { label: "Online", color: "bg-green-100 text-green-700" },
-  20: { label: "Disabled", color: "bg-gray-200 text-gray-500" },
-  30: { label: "Provisioning", color: "bg-yellow-100 text-yellow-700" },
-  40: { label: "Configuring Play", color: "bg-yellow-100 text-yellow-700" },
-  50: { label: "Applying Policies", color: "bg-yellow-100 text-yellow-700" },
-  60: { label: "Offline", color: "bg-red-100 text-red-700" },
-  70: { label: "Factory Resetting", color: "bg-orange-100 text-orange-700" },
-  80: { label: "Onboarding", color: "bg-blue-100 text-blue-700" },
-  90: { label: "Onboarding Failed", color: "bg-red-200 text-red-800" },
-  100: { label: "Onboarded", color: "bg-green-50 text-green-800" },
-  110: { label: "AFW Added", color: "bg-blue-50 text-blue-800" },
-  120: { label: "Apps Installed", color: "bg-blue-50 text-blue-800" },
-  130: { label: "Branding Processed", color: "bg-blue-50 text-blue-800" },
-  140: { label: "Permission Policy", color: "bg-blue-50 text-blue-800" },
-  150: { label: "Device Policy", color: "bg-blue-50 text-blue-800" },
-  160: { label: "Settings Processed", color: "bg-blue-50 text-blue-800" },
-  170: { label: "Security Policy", color: "bg-blue-50 text-blue-800" },
-  180: { label: "Phone Policy", color: "bg-blue-50 text-blue-800" },
-  190: { label: "Custom Settings", color: "bg-blue-50 text-blue-800" },
-  200: { label: "Registered", color: "bg-green-50 text-green-800" },
-}
-
-function getDeviceStatusInfo(state: number) {
-  return (
-    DEVICE_STATUS_MAP[state] || {
-      label: `Status ${state}`,
-      color: "bg-gray-200 text-gray-500",
-    }
-  )
-}
-
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { EsperCredentials, EsperDevice } from "@/lib/esper-api"
+import { getDeviceStatusInfo } from "@/lib/esper-api"
 
 interface DevicesStepProps {
   devices: EsperDevice[]
@@ -114,26 +81,12 @@ export function DevicesStep({
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
 
-  // Helper function to check if device was seen within last 30 minutes
-  const isDeviceRecentlySeen = (device: EsperDevice): boolean => {
-    if (!device.last_seen) {
-      return false // Hide devices without last_seen timestamp
-    }
-
-    const lastSeenTime = new Date(device.last_seen).getTime()
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000) // 30 minutes in milliseconds
-
-    return lastSeenTime > thirtyMinutesAgo
-  }
-
   const filteredDevices = devices.filter(
     (device) =>
-      // Only show devices that were seen within the last 30 minutes
-      isDeviceRecentlySeen(device) &&
-      // AND match the search criteria
-      (device.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        device.serial?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        device.alias?.toLowerCase().includes(searchTerm.toLowerCase())),
+      // Match the search criteria
+      device.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      device.serial?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      device.alias?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const totalPages = Math.ceil(filteredDevices.length / itemsPerPage)
@@ -145,6 +98,23 @@ export function DevicesStep({
   const handleSearchChange = (value: string) => {
     setSearchTerm(value)
     setCurrentPage(1)
+  }
+
+  // Helper function to check if device is offline
+  const isDeviceOffline = (device: EsperDevice) => {
+    if (!device.last_seen) return true
+
+    const lastSeenTime = new Date(device.last_seen).getTime()
+    const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000 // 30 minutes in milliseconds
+
+    return lastSeenTime <= thirtyMinutesAgo
+  }
+
+  // Function to get offline selected devices for external use
+  const getOfflineSelectedDevices = () => {
+    return selectedDevices
+      .map(deviceId => devices.find(d => d.id === deviceId))
+      .filter((device): device is EsperDevice => device !== undefined && isDeviceOffline(device))
   }
 
   return (
@@ -207,18 +177,18 @@ export function DevicesStep({
               const deviceName = device.name || "Unnamed Device"
               const deviceAlias = device.alias
 
-              // Dot color logic: green for 1, red for 60, yellow otherwise
-              let dotColor = "bg-yellow-400"
-              let statusLabel = "Unknown"
-              if (device.state === 1) {
-                dotColor = "bg-green-500"
-                statusLabel = "Online"
-              } else if (device.state === 60) {
-                dotColor = "bg-red-500"
-                statusLabel = "Offline"
-              } else {
-                // You can expand this mapping as needed
-                statusLabel = getDeviceStatusInfo(device.state).label
+              // Dot color logic: green if seen within 30 minutes, red if not
+              let dotColor = "bg-red-500"
+              let statusLabel = "Offline"
+
+              if (device.last_seen) {
+                const lastSeenTime = new Date(device.last_seen).getTime()
+                const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000 // 30 minutes in milliseconds
+
+                if (lastSeenTime > thirtyMinutesAgo) {
+                  dotColor = "bg-green-500"
+                  statusLabel = "Online"
+                }
               }
 
               return (
@@ -315,6 +285,8 @@ export function DevicesStep({
           </div>
         )}
       </div>
+
+
     </div>
   )
 }

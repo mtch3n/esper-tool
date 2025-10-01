@@ -16,6 +16,7 @@ interface SummaryStepProps {
   devices: EsperDevice[]
   selectedApplications: string[]
   launchApps: string[]
+  rebootAfterDeploy: boolean
 }
 
 export function SummaryStep({
@@ -24,6 +25,7 @@ export function SummaryStep({
   devices,
   selectedApplications,
   launchApps,
+  rebootAfterDeploy,
 }: SummaryStepProps) {
   const [applications, setApplications] = useState<EsperApplication[]>([])
   const [loading, setLoading] = useState(false)
@@ -110,6 +112,26 @@ export function SummaryStep({
           {selectedApplications.length === 0 && (
             <div>No applications selected</div>
           )}
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-sm font-medium text-gray-900">Options</div>
+        <div className="pl-3 text-sm text-gray-600">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-700">
+                Reboot devices after deployment:
+              </span>
+              <span
+                className={`font-medium ${
+                  rebootAfterDeploy ? "text-green-600" : "text-gray-500"
+                }`}
+              >
+                {rebootAfterDeploy ? "Yes" : "No"}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

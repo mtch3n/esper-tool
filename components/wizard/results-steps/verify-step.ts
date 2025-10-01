@@ -34,20 +34,24 @@ export async function executeVerifyStep(
           })
           setDeviceStatuses(statusMap)
 
-          // Check if all commands are completed (success or failure)
-          const completedCount = allStatuses.filter(
-            (s) =>
-              s.state === "Command Success" || s.state === "Command Failure",
+          // Check if all commands are completed (reached final state)
+          const finalStates = [
+            "Command TimeOut",
+            "Command Success",
+            "Command Failure",
+            "Command Scheduled",
+            "Command Cancelled",
+          ]
+          const completedCount = allStatuses.filter((s) =>
+            finalStates.includes(s.state),
           ).length
 
           if (completedCount === allStatuses.length) {
-            // All commands completed
+            // All commands completed - check for success
             const successCount = allStatuses.filter(
               (s) => s.state === "Command Success",
             ).length
-            const failureCount = allStatuses.filter(
-              (s) => s.state === "Command Failure",
-            ).length
+            const failureCount = allStatuses.length - successCount
 
             allCommandsComplete = true
 

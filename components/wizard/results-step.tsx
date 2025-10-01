@@ -1,10 +1,24 @@
-import { AlertCircle, CheckCircle, Clock, Loader2 } from "lucide-react"
+import {
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  getCommandStatus,
   type EsperCommandResponse,
   type EsperCommandStatus,
   type EsperCredentials,
@@ -16,17 +30,19 @@ import {
   executeEnableStep,
   executeValidateStep,
   executeLaunchStep,
+  executeRebootStep,
+  executeScreenshotStep,
+  executeLauncherStep,
   type StepContext,
 } from "./results-steps"
 
-interface DeploymentStep {
-  id: string
-  title: string
-  status: "pending" | "running" | "completed" | "failed"
-  timestamp?: string
-  details?: string
-  fullError?: string
-}
+import {
+  ResultsHeader,
+  DeviceCard,
+  StepDeviceStatusDisplay,
+  StepErrorDisplay,
+  type DeploymentStep,
+} from "./detail-cards"
 
 interface ResultsStepProps {
   selectedDevices: string[]
@@ -39,6 +55,7 @@ interface ResultsStepProps {
   launchApps: string[]
   devices: any[]
   credentials: EsperCredentials
+  rebootAfterDeploy?: boolean
   onDeploymentComplete: (completed: boolean) => void
 }
 
@@ -50,6 +67,7 @@ export function ResultsStep({
   launchApps,
   devices,
   credentials,
+  rebootAfterDeploy = false,
   onDeploymentComplete,
 }: ResultsStepProps) {
   const [deploymentSteps, setDeploymentSteps] = useState<DeploymentStep[]>([
@@ -82,6 +100,29 @@ export function ResultsStep({
           },
         ]
       : []),
+    ...(launchApps.length > 0
+      ? [
+          {
+            id: "screenshot",
+            title: `Capturing screenshots on ${selectedDevices.length} device(s)`,
+            status: "pending" as const,
+          },
+          {
+            id: "launcher",
+            title: `Launching Esper Launcher on ${selectedDevices.length} device(s)`,
+            status: "pending" as const,
+          },
+        ]
+      : []),
+    ...(rebootAfterDeploy
+      ? [
+          {
+            id: "reboot",
+            title: `Rebooting ${selectedDevices.length} device(s)`,
+            status: "pending" as const,
+          },
+        ]
+      : []),
   ])
 
   const [isComplete, setIsComplete] = useState(false)
@@ -90,15 +131,81 @@ export function ResultsStep({
   const [commandResponses, setCommandResponses] = useState<
     EsperCommandResponse[]
   >([])
-  const [deviceStatuses, setDeviceStatuses] = useState<
-    Map<string, EsperCommandStatus>
-  >(new Map())
-  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set())
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
+
+  const router = useRouter()
 
   // Reset deployment state when component mounts (new deployment starts)
   useEffect(() => {
     onDeploymentComplete(false)
   }, [])
+
+  // Helper function to update step state
+  const updateStepState = (
+    stepIndex: number,
+    updates: Partial<DeploymentStep>,
+  ) => {
+    setDeploymentSteps((prev) => {
+      const updated = [...prev]
+      updated[stepIndex] = {
+        ...updated[stepIndex],
+        ...updates,
+      }
+      return updated
+    })
+  }
+
+  // Helper function to update device status for a step
+  const updateStepDeviceStatus = (
+    stepIndex: number,
+    deviceStatuses: Map<string, EsperCommandStatus>,
+  ) => {
+    const summary = {
+      successful: Array.from(deviceStatuses.values()).filter(
+        (s) => s.state === "Command Success",
+      ).length,
+      failed: Array.from(deviceStatuses.values()).filter(
+        (s) => s.state === "Command Failure",
+      ).length,
+      inProgress: Array.from(deviceStatuses.values()).filter(
+        (s) => !["Command Success", "Command Failure"].includes(s.state),
+      ).length,
+    }
+
+    updateStepState(stepIndex, {
+      deviceStatus: {
+        deviceStatuses,
+        summary,
+      },
+    })
+  }
+
+  // Helper functions for step display
+  const getStepIcon = (status: DeploymentStep["status"]) => {
+    switch (status) {
+      case "pending":
+        return <Clock className="h-5 w-5 text-gray-400" />
+      case "running":
+        return <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+      case "completed":
+        return <CheckCircle className="h-5 w-5 text-green-600" />
+      case "failed":
+        return <AlertCircle className="h-5 w-5 text-red-600" />
+    }
+  }
+
+  const getStepBadge = (status: DeploymentStep["status"]) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="secondary">Pending</Badge>
+      case "running":
+        return <Badge className="bg-blue-100 text-blue-800">Running</Badge>
+      case "completed":
+        return <Badge className="bg-green-100 text-green-800">Completed</Badge>
+      case "failed":
+        return <Badge className="bg-red-100 text-red-800">Failed</Badge>
+    }
+  }
 
   // Real deployment implementation using Esper API
   useEffect(() => {
@@ -110,14 +217,9 @@ export function ResultsStep({
 
       try {
         // Mark step as running
-        setDeploymentSteps((prev) => {
-          const updated = [...prev]
-          updated[stepIndex] = {
-            ...updated[stepIndex],
-            status: "running",
-            timestamp: new Date().toLocaleTimeString(),
-          }
-          return updated
+        updateStepState(stepIndex, {
+          status: "running",
+          timestamp: new Date().toLocaleTimeString(),
         })
 
         // Create step context for modular functions
@@ -148,7 +250,8 @@ export function ResultsStep({
           case "verify": {
             const result = await executeVerifyStep(
               stepContext,
-              setDeviceStatuses,
+              (deviceStatuses) =>
+                updateStepDeviceStatus(stepIndex, deviceStatuses),
             )
             stepResult = result.message
             stepSuccess = result.success
@@ -184,19 +287,45 @@ export function ResultsStep({
             }
             break
           }
+          case "screenshot": {
+            const result = await executeScreenshotStep(
+              stepContext,
+              (deviceStatuses) =>
+                updateStepDeviceStatus(stepIndex, deviceStatuses),
+            )
+            stepResult = result.message
+            stepSuccess = result.success
+            if (!result.success && result.error) {
+              throw result.error
+            }
+            break
+          }
+          case "launcher": {
+            const result = await executeLauncherStep(stepContext)
+            stepResult = result.message
+            stepSuccess = result.success
+            if (!result.success && result.error) {
+              throw result.error
+            }
+            break
+          }
+          case "reboot": {
+            const result = await executeRebootStep(stepContext)
+            stepResult = result.message
+            stepSuccess = result.success
+            if (!result.success && result.error) {
+              throw result.error
+            }
+            break
+          }
           default:
             stepResult = "Step completed"
         }
 
         // Mark step as completed
-        setDeploymentSteps((prev) => {
-          const updated = [...prev]
-          updated[stepIndex] = {
-            ...updated[stepIndex],
-            status: "completed",
-            details: stepResult,
-          }
-          return updated
+        updateStepState(stepIndex, {
+          status: "completed",
+          details: stepResult,
         })
 
         // Move to next step or complete
@@ -233,18 +362,14 @@ export function ResultsStep({
         }
 
         // Mark step as failed
-        setDeploymentSteps((prev) => {
-          const updated = [...prev]
-          updated[stepIndex] = {
-            ...updated[stepIndex],
-            status: "failed",
-            details: errorMessage,
-            fullError: fullErrorDetails,
-          }
-
-          // Don't modify subsequent steps - they'll be shown as canceled in the UI
-
-          return updated
+        updateStepState(stepIndex, {
+          status: "failed",
+          details: errorMessage,
+          error: {
+            message: errorMessage,
+            technicalDetails: fullErrorDetails,
+            isExpanded: false,
+          },
         })
 
         setHasFailed(true)
@@ -266,122 +391,77 @@ export function ResultsStep({
     selectedDevices,
     selectedApplications,
     launchApps,
+    rebootAfterDeploy,
     credentials,
-    commandResponses,
   ])
 
-  const getStepDetails = (stepId: string): string => {
-    switch (stepId) {
-      case "validate":
-        return "Configuration validated successfully"
-      case "prepare":
-        return `${selectedApplications.length} package(s) prepared`
-      case "upload":
-        return "Upload completed (2.3 MB transferred)"
-      case "distribute":
-        return `Sent to ${selectedDevices.length} device(s)`
-      case "verify":
-        return `Verifying ${selectedApplications.length} app(s) on ${selectedDevices.length} device(s) - polling every 5s`
-      case "enable":
-        return `Enabling ${selectedApplications.length} app(s) on ${selectedDevices.length} device(s)`
-      case "validate":
-        return `Validating app presence on ${selectedDevices.length} device(s) - checking package names`
-      case "launch":
-        return `Launching ${launchApps.length} app(s) on ${selectedDevices.length} device(s)`
-      default:
-        return "Completed"
+  // Handler functions for child components
+  const handleToggleStepExpansion = (stepId: string) => {
+    setExpandedSteps((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(stepId)) {
+        newSet.delete(stepId)
+      } else {
+        newSet.add(stepId)
+      }
+      return newSet
+    })
+  }
+
+  const handleStepRetry = (index: number) => {
+    // Reset the failed step and continue from there
+    updateStepState(index, {
+      status: "pending",
+      timestamp: undefined,
+      details: undefined,
+      error: undefined,
+      deviceStatus: undefined,
+    })
+    setCurrentStepIndex(index)
+    setHasFailed(false)
+  }
+
+  const handleToggleErrorExpansion = (stepId: string) => {
+    const stepIndex = deploymentSteps.findIndex((step) => step.id === stepId)
+    if (stepIndex !== -1 && deploymentSteps[stepIndex].error) {
+      updateStepState(stepIndex, {
+        error: {
+          ...deploymentSteps[stepIndex].error!,
+          isExpanded: !deploymentSteps[stepIndex].error!.isExpanded,
+        },
+      })
     }
   }
 
-  const getFailureDetails = (stepId: string): string => {
-    switch (stepId) {
-      case "validate":
-        return "Invalid configuration detected"
-      case "prepare":
-        return "Failed to prepare application packages"
-      case "upload":
-        return "Upload failed due to network error"
-      case "distribute":
-        return "Failed to distribute to some devices"
-      case "verify":
-        return "Verification failed - commands did not complete successfully"
-      case "enable":
-        return "Enable failed - could not enable apps on devices"
-      case "validate":
-        return "Validation failed - apps not found on devices or timeout reached"
-      case "launch":
-        return "Launch failed - could not launch apps on devices"
-      default:
-        return "Step failed"
-    }
+  const handleToggleDeviceExpansion = (deviceId: string) => {
+    setExpandedSteps((prev) => {
+      const newSet = new Set(prev)
+      const deviceKey = `device-${deviceId}`
+      if (newSet.has(deviceKey)) {
+        newSet.delete(deviceKey)
+      } else {
+        newSet.add(deviceKey)
+      }
+      return newSet
+    })
   }
 
-  // Per-step retry is handled inline in the component
-
-  const getStepIcon = (status: DeploymentStep["status"]) => {
-    switch (status) {
-      case "pending":
-        return <Clock className="h-4 w-4 text-gray-400" />
-      case "running":
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-      case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
-      case "failed":
-        return <AlertCircle className="h-4 w-4 text-red-600" />
-    }
-  }
-
-  const getStepBadge = (status: DeploymentStep["status"]) => {
-    switch (status) {
-      case "pending":
-        return <Badge variant="secondary">Pending</Badge>
-      case "running":
-        return <Badge className="bg-blue-100 text-blue-800">Running</Badge>
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>
-      case "failed":
-        return <Badge className="bg-red-100 text-red-800">Failed</Badge>
-    }
+  const handleViewScreenshots = () => {
+    // Navigate to screenshot review page with device IDs only
+    const deviceIds = selectedDevices.join(",")
+    router.push(`/screenshot-review?devices=${deviceIds}`)
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="text-center">
-        {isComplete ? (
-          <>
-            <CheckCircle className="mx-auto mb-4 h-12 w-12 text-green-600" />
-            <h2 className="text-xl font-semibold text-gray-900">
-              Deployment Completed Successfully!
-            </h2>
-            <p className="mt-2 text-gray-600">
-              All applications have been deployed to {selectedDevices.length}{" "}
-              device(s).
-            </p>
-          </>
-        ) : hasFailed ? (
-          <>
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-600" />
-            <h2 className="text-xl font-semibold text-gray-900">
-              Deployment Failed
-            </h2>
-            <p className="mt-2 text-gray-600">
-              A deployment step encountered an error. You can retry the failed
-              step below.
-            </p>
-          </>
-        ) : (
-          <>
-            <Loader2 className="mx-auto mb-4 h-12 w-12 animate-spin text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">
-              Deployment in Progress
-            </h2>
-            <p className="mt-2 text-gray-600">
-              Please wait while we deploy your applications...
-            </p>
-          </>
-        )}
-      </div>
+      <ResultsHeader
+        isComplete={isComplete}
+        hasFailed={hasFailed}
+        selectedDevices={selectedDevices}
+        devices={devices}
+        onViewScreenshots={handleViewScreenshots}
+      />
 
       {/* Tabs for Deployment Steps and Device Status */}
       <Tabs defaultValue="steps" className="w-full">
@@ -398,199 +478,150 @@ export function ResultsStep({
                 index > currentStepIndex &&
                 hasFailed
 
-              const getAlertVariant = () => {
-                if (isCanceled) return "default"
-                switch (step.status) {
-                  case "pending":
-                    return "default"
-                  case "running":
-                    return "info"
-                  case "completed":
-                    return "success"
-                  case "failed":
-                    return "destructive"
-                  default:
-                    return "default"
-                }
+              const isExpanded = expandedSteps.has(step.id)
+
+              const handleToggleExpansion = () => {
+                handleToggleStepExpansion(step.id)
               }
 
-              const handleStepRetry = () => {
-                // Reset the failed step and continue from there
-                setDeploymentSteps((prev) => {
-                  const updated = [...prev]
-                  updated[index] = {
-                    ...updated[index],
-                    status: "pending",
-                    timestamp: undefined,
-                    details: undefined,
-                    fullError: undefined,
-                  }
-                  return updated
-                })
-                setCurrentStepIndex(index)
-                setHasFailed(false)
-                // Clear expanded error state for this step
-                setExpandedErrors((prev) => {
-                  const newSet = new Set(prev)
-                  newSet.delete(step.id)
-                  return newSet
-                })
+              const handleRetry = () => {
+                handleStepRetry(index)
               }
 
-              const toggleErrorExpansion = () => {
-                setExpandedErrors((prev) => {
-                  const newSet = new Set(prev)
-                  if (newSet.has(step.id)) {
-                    newSet.delete(step.id)
-                  } else {
-                    newSet.add(step.id)
-                  }
-                  return newSet
-                })
+              const handleStepToggleErrorExpansion = () => {
+                handleToggleErrorExpansion(step.id)
               }
 
               return (
-                <Alert key={step.id} variant={getAlertVariant()}>
-                  {isCanceled ? (
-                    <AlertCircle className="h-4 w-4 text-gray-400" />
-                  ) : (
-                    getStepIcon(step.status)
-                  )}
-                  <AlertTitle className="flex items-center justify-between">
-                    <span>{step.title}</span>
-                    <div className="flex items-center gap-2">
-                      {isCanceled ? (
-                        <Badge
-                          variant="secondary"
-                          className="bg-gray-200 text-gray-600"
-                        >
-                          Canceled
-                        </Badge>
-                      ) : (
-                        getStepBadge(step.status)
-                      )}
-                      {step.status === "failed" && (
-                        <button
-                          onClick={handleStepRetry}
-                          className="inline-flex items-center rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-                        >
-                          <AlertCircle className="mr-1 h-3 w-3" />
-                          Retry
-                        </button>
-                      )}
-                    </div>
-                  </AlertTitle>
-                  <AlertDescription>
-                    {step.timestamp && (
-                      <p className="text-xs">Started at {step.timestamp}</p>
-                    )}
-                    {step.details && <p className="text-xs">{step.details}</p>}
-                    {isCanceled && (
-                      <p className="text-xs text-gray-500">
-                        Canceled due to previous step failure
-                      </p>
-                    )}
-                    {step.status === "failed" && step.fullError && (
-                      <div className="mt-2">
-                        <button
-                          onClick={toggleErrorExpansion}
-                          className="inline-flex items-center text-xs font-medium text-red-600 hover:text-red-800"
-                        >
-                          {expandedErrors.has(step.id) ? "Hide" : "Show"}{" "}
-                          Details
-                          <span className="ml-1">
-                            {expandedErrors.has(step.id) ? "▼" : "▶"}
-                          </span>
-                        </button>
-                        {expandedErrors.has(step.id) && (
-                          <div className="mt-2 overflow-x-auto rounded border border-red-200 bg-red-50 p-3 font-mono text-xs whitespace-pre-wrap text-red-800">
-                            {step.fullError}
+                <Collapsible
+                  key={step.id}
+                  open={isExpanded}
+                  onOpenChange={handleToggleExpansion}
+                >
+                  <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <CollapsibleTrigger className="w-full">
+                      <div className="flex items-center justify-between p-4 transition-colors hover:bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          {isCanceled ? (
+                            <AlertCircle className="h-5 w-5 text-gray-400" />
+                          ) : (
+                            getStepIcon(step.status)
+                          )}
+                          <div className="text-left">
+                            <h3 className="font-medium text-gray-900">
+                              {step.title}
+                            </h3>
+                            {step.timestamp && (
+                              <p className="text-sm text-gray-500">
+                                Started at {step.timestamp}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {isCanceled ? (
+                            <Badge
+                              variant="secondary"
+                              className="bg-gray-200 text-gray-600"
+                            >
+                              Canceled
+                            </Badge>
+                          ) : (
+                            getStepBadge(step.status)
+                          )}
+                          {step.status === "failed" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRetry()
+                              }}
+                              className="inline-flex items-center rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                            >
+                              <AlertCircle className="mr-1 h-3 w-3" />
+                              Retry
+                            </button>
+                          )}
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-gray-500" />
+                          )}
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+
+                    <CollapsibleContent>
+                      <div className="border-t border-gray-100 px-4 pt-3 pb-4">
+                        {/* Step Details */}
+                        {step.details && (
+                          <div className="mb-3">
+                            <h4 className="mb-1 text-sm font-medium text-gray-700">
+                              Details
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              {step.details}
+                            </p>
                           </div>
                         )}
+
+                        {/* Device Status - now part of step state */}
+                        {step.deviceStatus && (
+                          <StepDeviceStatusDisplay
+                            deviceStatus={step.deviceStatus}
+                            devices={devices}
+                          />
+                        )}
+
+                        {/* Canceled Status */}
+                        {isCanceled && (
+                          <div className="mb-3">
+                            <h4 className="mb-1 text-sm font-medium text-gray-700">
+                              Status
+                            </h4>
+                            <p className="text-sm text-gray-500">
+                              Canceled due to previous step failure
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Error Display - now part of step state */}
+                        {step.error && (
+                          <StepErrorDisplay
+                            error={step.error}
+                            stepId={step.id}
+                            onToggleExpansion={handleStepToggleErrorExpansion}
+                          />
+                        )}
+
+                        {/* Expected Output */}
+                        {!step.details &&
+                          !isCanceled &&
+                          step.status !== "failed" && (
+                            <div>
+                              <h4 className="mb-1 text-sm font-medium text-gray-700">
+                                Expected Output
+                              </h4>
+                              <p className="text-sm text-gray-600">
+                                {step.expectedOutput ||
+                                  (step.status === "completed"
+                                    ? "Step completed successfully"
+                                    : step.status === "running"
+                                      ? `Currently ${step.id}ing...`
+                                      : "Waiting to start...")}
+                              </p>
+                            </div>
+                          )}
                       </div>
-                    )}
-                  </AlertDescription>
-                </Alert>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
               )
             })}
           </div>
         </TabsContent>
 
         <TabsContent value="devices" className="mt-6 space-y-4">
-          {isComplete ? (
-            <div className="grid grid-cols-1 gap-3">
-              {selectedDevices.slice(0, 10).map((deviceId, index) => {
-                const device = devices.find((d) => d.id === deviceId)
-                return (
-                  <Alert key={deviceId} variant="success">
-                    <CheckCircle />
-                    <AlertTitle className="flex items-center justify-between">
-                      <span>{device?.name || `Device ${index + 1}`}</span>
-                      <Badge className="bg-green-100 text-green-800">
-                        Deployed
-                      </Badge>
-                    </AlertTitle>
-                    <AlertDescription>
-                      <p className="text-xs">{device?.serial || deviceId}</p>
-                    </AlertDescription>
-                  </Alert>
-                )
-              })}
-              {selectedDevices.length > 10 && (
-                <p className="text-center text-sm text-gray-500">
-                  ... and {selectedDevices.length - 10} more device(s)
-                </p>
-              )}
-            </div>
-          ) : hasFailed ? (
-            <div className="grid grid-cols-1 gap-3">
-              {selectedDevices.slice(0, 10).map((deviceId, index) => {
-                const device = devices.find((d) => d.id === deviceId)
-                const deviceStatus = deviceStatuses.get(deviceId)
-                const deviceFailed =
-                  deviceStatus?.state === "Command Failure" || index % 3 === 0 // Fallback to simulation
-
-                return (
-                  <Alert
-                    key={deviceId}
-                    variant={deviceFailed ? "destructive" : "success"}
-                  >
-                    {deviceFailed ? <AlertCircle /> : <CheckCircle />}
-                    <AlertTitle className="flex items-center justify-between">
-                      <span>{device?.name || `Device ${index + 1}`}</span>
-                      <Badge
-                        className={
-                          deviceFailed
-                            ? "bg-red-100 text-red-800"
-                            : "bg-green-100 text-green-800"
-                        }
-                      >
-                        {deviceFailed ? "Failed" : "Deployed"}
-                      </Badge>
-                    </AlertTitle>
-                    <AlertDescription>
-                      <p className="text-xs">{device?.serial || deviceId}</p>
-                      {deviceStatus && (
-                        <p className="mt-1 text-xs">
-                          Status: {deviceStatus.state}
-                        </p>
-                      )}
-                      {deviceFailed && !deviceStatus && (
-                        <p className="mt-1 text-xs">
-                          Installation failed - network timeout
-                        </p>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )
-              })}
-              {selectedDevices.length > 10 && (
-                <p className="text-center text-sm text-gray-500">
-                  ... and {selectedDevices.length - 10} more device(s)
-                </p>
-              )}
-            </div>
-          ) : (
+          {!isComplete && !hasFailed ? (
             <Alert variant="info">
               <Clock />
               <AlertTitle>Waiting for Deployment</AlertTitle>
@@ -598,6 +629,36 @@ export function ResultsStep({
                 Device status will be available once deployment is complete.
               </AlertDescription>
             </Alert>
+          ) : (
+            <div className="space-y-3">
+              {selectedDevices.slice(0, 10).map((deviceId, index) => {
+                const device = devices.find((d) => d.id === deviceId)
+                const deviceFailed = hasFailed && index % 3 === 0 // Fallback to simulation
+                const isExpanded = expandedSteps.has(`device-${deviceId}`)
+
+                const handleToggleExpansion = () => {
+                  handleToggleDeviceExpansion(deviceId)
+                }
+
+                return (
+                  <DeviceCard
+                    key={deviceId}
+                    deviceId={deviceId}
+                    device={device}
+                    isExpanded={isExpanded}
+                    launchApps={launchApps}
+                    onToggleExpansion={handleToggleExpansion}
+                    variant={deviceFailed ? "failed" : "success"}
+                    deviceStatus={undefined}
+                  />
+                )
+              })}
+              {selectedDevices.length > 10 && (
+                <p className="text-center text-sm text-gray-500">
+                  ... and {selectedDevices.length - 10} more device(s)
+                </p>
+              )}
+            </div>
           )}
         </TabsContent>
       </Tabs>
