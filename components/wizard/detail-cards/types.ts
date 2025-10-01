@@ -1,4 +1,4 @@
-import type { EsperCommandStatus, EsperCredentials } from "@/lib/esper-api"
+import type { EsperCommandStatus } from "@/lib/esper-api"
 
 export interface StepDeviceStatus {
   deviceStatuses: Map<string, EsperCommandStatus>

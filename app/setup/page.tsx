@@ -1,27 +1,17 @@
 "use client"
 
 import {
+  AlertTriangle,
   CheckCircle,
   FileCheck,
   RotateCcw,
   Settings,
   Smartphone,
   Upload,
-  AlertTriangle,
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +22,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AppStep } from "@/components/wizard/app-step"
@@ -68,7 +68,7 @@ export default function WizardPage() {
     Map<string, string>
   >(new Map())
   const [launchApps, setLaunchApps] = useState<string[]>([])
-  const [rebootAfterDeploy, setRebootAfterDeploy] = useState<boolean>(false)
+  const [rebootAfterDeploy, setRebootAfterDeploy] = useState<boolean>(true)
   const [results, setResults] = useState("")
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [confirmText, setConfirmText] = useState("")
@@ -170,7 +170,7 @@ export default function WizardPage() {
     // Check for offline devices when leaving the devices step
     if (currentStep === "devices") {
       const offlineSelectedDevices = selectedDevices
-        .map(deviceId => devices.find(d => d.id === deviceId))
+        .map((deviceId) => devices.find((d) => d.id === deviceId))
         .filter((device): device is EsperDevice => {
           if (!device) return false
           if (!device.last_seen) return true
@@ -180,7 +180,7 @@ export default function WizardPage() {
 
           return lastSeenTime <= thirtyMinutesAgo
         })
-        .map(device => device.name || "Unnamed Device")
+        .map((device) => device.name || "Unnamed Device")
 
       if (offlineSelectedDevices.length > 0) {
         setOfflineDevices(offlineSelectedDevices)
@@ -580,16 +580,18 @@ export default function WizardPage() {
               <AlertDialogTitle>Offline Devices Detected</AlertDialogTitle>
             </div>
             <AlertDialogDescription>
-              The following devices haven't been seen in the last 30 minutes and may be offline:
-              <br /><br />
-              <ul className="list-disc list-inside text-sm text-gray-600">
+              The following devices haven't been seen in the last 30 minutes and
+              may be offline:
+              <br />
+              <br />
+              <ul className="list-inside list-disc text-sm text-gray-600">
                 {offlineDevices.map((deviceName, index) => (
                   <li key={index}>{deviceName}</li>
                 ))}
               </ul>
               <br />
-              Deploying to offline devices may fail or cause unexpected behavior.
-              Do you want to proceed anyway?
+              Deploying to offline devices may fail or cause unexpected
+              behavior. Do you want to proceed anyway?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

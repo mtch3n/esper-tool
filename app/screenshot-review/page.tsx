@@ -1,23 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
 import {
-  CheckCircle,
-  XCircle,
   ArrowLeft,
-  RotateCcw,
-  Smartphone,
-  Clock,
-  AlertTriangle,
+  CheckCircle,
   ChevronDown,
   ChevronUp,
+  Clock,
+  RotateCcw,
+  XCircle,
 } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Collapsible,
   CollapsibleContent,
@@ -26,9 +23,9 @@ import {
 import { useCredentials } from "@/hooks/use-credentials"
 import { useDevices } from "@/hooks/use-esper-queries"
 import {
-  getLatestDeviceScreenshot,
-  type EsperScreenshot,
   type EsperDevice,
+  type EsperScreenshot,
+  getLatestDeviceScreenshot,
 } from "@/lib/esper-api"
 
 interface DeviceScreenshotData {
@@ -46,7 +43,9 @@ export default function ScreenshotReviewPage() {
   // Fetch devices using React Query
   const { data: devicesData } = useDevices(
     credentials,
-    !!credentials.tenant_id && !!credentials.apiKey && !!credentials.enterprise_id
+    !!credentials.tenant_id &&
+      !!credentials.apiKey &&
+      !!credentials.enterprise_id,
   )
 
   const [deviceScreenshots, setDeviceScreenshots] = useState<
@@ -81,16 +80,18 @@ export default function ScreenshotReviewPage() {
       // Find the actual device data from React Query
       const actualDevice = devicesData.find((device) => device.id === deviceId)
 
-      const device = actualDevice ? {
-        ...actualDevice,
-        id: actualDevice.id,
-        name: actualDevice.name,
-        alias: actualDevice.alias || "",
-      } : {
-        id: deviceId,
-        name: `Device ${deviceId.slice(-4)}`,
-        alias: "",
-      } as EsperDevice
+      const device = actualDevice
+        ? {
+            ...actualDevice,
+            id: actualDevice.id,
+            name: actualDevice.name,
+            alias: actualDevice.alias || "",
+          }
+        : ({
+            id: deviceId,
+            name: `Device ${deviceId.slice(-4)}`,
+            alias: "",
+          } as EsperDevice)
 
       return {
         device,
@@ -218,8 +219,12 @@ export default function ScreenshotReviewPage() {
   ).length
 
   // Check if all devices are reviewed and accepted
-  const allReviewed = deviceScreenshots.length > 0 && deviceScreenshots.every(device => device.userDecision)
-  const allAccepted = allReviewed && deviceScreenshots.every(device => device.userDecision === "success")
+  const allReviewed =
+    deviceScreenshots.length > 0 &&
+    deviceScreenshots.every((device) => device.userDecision)
+  const allAccepted =
+    allReviewed &&
+    deviceScreenshots.every((device) => device.userDecision === "success")
 
   const handleCompleteReview = () => {
     router.push("/devices")
@@ -234,7 +239,10 @@ export default function ScreenshotReviewPage() {
           </div>
           <div className="flex items-center gap-3">
             {allAccepted && (
-              <Button onClick={handleCompleteReview} className="bg-green-600 hover:bg-green-700 text-white">
+              <Button
+                onClick={handleCompleteReview}
+                className="bg-green-600 text-white hover:bg-green-700"
+              >
                 <CheckCircle className="mr-2 h-4 w-4" />
                 Complete Review
               </Button>
@@ -311,9 +319,12 @@ export default function ScreenshotReviewPage() {
       {/* Screenshots Grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {deviceScreenshots.map((deviceData) => (
-          <Card key={deviceData.device.id} className="overflow-hidden max-h-[600px] flex flex-col">
+          <Card
+            key={deviceData.device.id}
+            className="flex max-h-[600px] flex-col overflow-hidden"
+          >
             {/* Header */}
-            <CardHeader className="pb-3 flex-shrink-0">
+            <CardHeader className="flex-shrink-0 pb-3">
               <div className="flex items-center gap-2">
                 <CardTitle className="truncate text-base">
                   {deviceData.device.name}
@@ -345,18 +356,18 @@ export default function ScreenshotReviewPage() {
             </CardHeader>
 
             {/* Screenshot Content */}
-            <CardContent className="flex-1 flex flex-col min-h-0">
+            <CardContent className="flex min-h-0 flex-1 flex-col">
               {deviceData.status === "failed" || !deviceData.screenshot ? (
-                <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 min-h-[200px]">
+                <div className="flex min-h-[200px] flex-1 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50">
                   <div className="text-center text-gray-400">
                     <XCircle className="mx-auto mb-2 h-6 w-6" />
                     <p className="text-sm">No screenshot available</p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3 flex-1 flex flex-col">
+                <div className="flex flex-1 flex-col space-y-3">
                   <div
-                    className="flex-1 cursor-pointer overflow-hidden rounded-lg border bg-gray-50 transition-opacity hover:opacity-90 min-h-[200px] max-h-[400px]"
+                    className="max-h-[400px] min-h-[200px] flex-1 cursor-pointer overflow-hidden rounded-lg border bg-gray-50 transition-opacity hover:opacity-90"
                     onClick={() =>
                       deviceData.screenshot &&
                       setSelectedImage({
@@ -391,35 +402,35 @@ export default function ScreenshotReviewPage() {
                     )}
 
                     <div className="flex gap-2 pt-1">
-                    <Button
-                      onClick={() =>
-                        handleDeviceDecision(deviceData.device.id, "success")
-                      }
-                      variant={
-                        deviceData.userDecision === "success"
-                          ? "default"
-                          : "outline"
-                      }
-                      className="h-8 flex-1 text-xs"
-                      size="sm"
-                    >
-                      <CheckCircle className="mr-1 h-3 w-3" />
-                      Accept
-                    </Button>
-                    <Button
-                      onClick={() =>
-                        handleDeviceDecision(deviceData.device.id, "failed")
-                      }
-                      variant={
-                        deviceData.userDecision === "failed"
-                          ? "default"
-                          : "outline"
-                      }
-                      className="h-8 flex-1 text-xs"
-                      size="sm"
-                    >
-                      <XCircle className="mr-1 h-3 w-3" />
-                      Reject
+                      <Button
+                        onClick={() =>
+                          handleDeviceDecision(deviceData.device.id, "success")
+                        }
+                        variant={
+                          deviceData.userDecision === "success"
+                            ? "default"
+                            : "outline"
+                        }
+                        className="h-8 flex-1 text-xs"
+                        size="sm"
+                      >
+                        <CheckCircle className="mr-1 h-3 w-3" />
+                        Accept
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          handleDeviceDecision(deviceData.device.id, "failed")
+                        }
+                        variant={
+                          deviceData.userDecision === "failed"
+                            ? "default"
+                            : "outline"
+                        }
+                        className="h-8 flex-1 text-xs"
+                        size="sm"
+                      >
+                        <XCircle className="mr-1 h-3 w-3" />
+                        Reject
                       </Button>
                     </div>
                   </div>
@@ -433,15 +444,17 @@ export default function ScreenshotReviewPage() {
       {/* Custom Image Modal */}
       {selectedImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 flex flex-col"
+          className="fixed inset-0 z-50 flex flex-col bg-black/80"
           onClick={() => setSelectedImage(null)}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 text-white">
-            <h2 className="text-xl font-semibold">{selectedImage.deviceName}</h2>
+            <h2 className="text-xl font-semibold">
+              {selectedImage.deviceName}
+            </h2>
             <button
               onClick={() => setSelectedImage(null)}
-              className="text-white hover:text-gray-300 text-2xl font-bold"
+              className="text-2xl font-bold text-white hover:text-gray-300"
             >
               ×
             </button>
@@ -449,13 +462,13 @@ export default function ScreenshotReviewPage() {
 
           {/* Image Container */}
           <div
-            className="flex-1 flex items-center justify-center p-6"
+            className="flex flex-1 items-center justify-center p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <img
               src={selectedImage.url}
               alt={`Screenshot for ${selectedImage.deviceName}`}
-              className="max-w-[95vw] max-h-[calc(95vh-100px)] object-contain"
+              className="max-h-[calc(95vh-100px)] max-w-[95vw] object-contain"
             />
           </div>
         </div>

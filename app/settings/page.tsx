@@ -1,13 +1,7 @@
 "use client"
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { CredentialsForm } from "@/components/credentials-form"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function SettingsPage() {
   return (

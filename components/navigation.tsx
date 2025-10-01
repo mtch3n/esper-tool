@@ -1,9 +1,10 @@
 "use client"
 
+import { Home, Rocket, Settings, Smartphone } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+
 import { cn } from "@/lib/utils"
-import { Home, Rocket, Settings, Smartphone } from "lucide-react"
 
 const navigation = [
   { name: "Setup", href: "/setup", icon: Home },

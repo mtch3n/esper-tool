@@ -6,6 +6,14 @@ import {
   Search,
   Smartphone,
 } from "lucide-react"
+import { useState } from "react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import type { EsperDevice } from "@/lib/esper-api"
 
 // Android OS version to SDK API level mapping
 const getAndroidSdkLevel = (osVersion: string): string => {
@@ -49,16 +57,6 @@ const getAndroidSdkLevel = (osVersion: string): string => {
   const sdkLevel = versionMap[version] || versionMap[Math.floor(version)]
   return sdkLevel ? `${sdkLevel}` : "Unknown"
 }
-
-import { useState } from "react"
-
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import type { EsperCredentials, EsperDevice } from "@/lib/esper-api"
-import { getDeviceStatusInfo } from "@/lib/esper-api"
 
 interface DevicesStepProps {
   devices: EsperDevice[]
@@ -113,8 +111,11 @@ export function DevicesStep({
   // Function to get offline selected devices for external use
   const getOfflineSelectedDevices = () => {
     return selectedDevices
-      .map(deviceId => devices.find(d => d.id === deviceId))
-      .filter((device): device is EsperDevice => device !== undefined && isDeviceOffline(device))
+      .map((deviceId) => devices.find((d) => d.id === deviceId))
+      .filter(
+        (device): device is EsperDevice =>
+          device !== undefined && isDeviceOffline(device),
+      )
   }
 
   return (
@@ -285,8 +286,6 @@ export function DevicesStep({
           </div>
         )}
       </div>
-
-
     </div>
   )
 }

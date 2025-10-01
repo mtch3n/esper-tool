@@ -1,25 +1,21 @@
 "use client"
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
 import {
   ColumnDef,
   ColumnFiltersState,
-  SortingState,
-  VisibilityState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  SortingState,
   useReactTable,
+  VisibilityState,
 } from "@tanstack/react-table"
-import { ChevronDown, Search, RotateCcw } from "lucide-react"
+import { ChevronDown, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import * as React from "react"
 import { toast } from "sonner"
-
-import type { EsperDevice } from "@/lib/esper-api"
-import { esperApiService } from "@/lib/esper-api"
-import { useCredentials } from "@/hooks/use-credentials"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -27,11 +23,16 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -40,13 +41,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { useCredentials } from "@/hooks/use-credentials"
+import type { EsperDevice } from "@/lib/esper-api"
+import { esperApiService } from "@/lib/esper-api"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -127,12 +124,17 @@ export function DataTable<TData, TValue>({
     setIsRebooting(true)
     try {
       await esperApiService.rebootDevice(credentials, selectedDeviceIds)
-      toast.success(`Reboot initiated for ${selectedDeviceIds.length} device(s)`)
+      toast.success(
+        `Reboot initiated for ${selectedDeviceIds.length} device(s)`,
+      )
       // Clear selection after successful reboot
       setRowSelection({})
     } catch (error) {
       console.error("Failed to reboot devices:", error)
-      toast.error("Failed to reboot devices: " + (error instanceof Error ? error.message : "Unknown error"))
+      toast.error(
+        "Failed to reboot devices: " +
+          (error instanceof Error ? error.message : "Unknown error"),
+      )
     } finally {
       setIsRebooting(false)
     }
@@ -229,15 +231,21 @@ export function DataTable<TData, TValue>({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                disabled={table.getFilteredSelectedRowModel().rows.length === 0 || isRebooting}
+                disabled={
+                  table.getFilteredSelectedRowModel().rows.length === 0 ||
+                  isRebooting
+                }
               >
                 Action
                 <ChevronDown className="ml-2 h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={handleBulkReboot} disabled={isRebooting}>
-                {isRebooting ? 'Rebooting...' : 'Reboot'}
+              <DropdownMenuItem
+                onClick={handleBulkReboot}
+                disabled={isRebooting}
+              >
+                {isRebooting ? "Rebooting..." : "Reboot"}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDeployKScanner}>
                 Deploy KScanner

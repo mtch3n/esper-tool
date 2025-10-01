@@ -269,72 +269,6 @@ interface EsperAppVersionsResponse
   extends EsperPaginatedResponse<EsperApplicationVersion> {}
 
 class EsperApiService {
-  private getBaseUrl(tenantId: string) {
-    return `https://${tenantId}-api.esper.cloud/api`
-  }
-
-  private getHeaders(apiKey: string) {
-    return {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    }
-  }
-
-  private buildUrl(
-    baseUrl: string,
-    path: string,
-    params?: URLSearchParams,
-  ): string {
-    const url = `${baseUrl}${path}`
-    return params?.toString() ? `${url}?${params}` : url
-  }
-
-  private buildParams(options: Record<string, any>): URLSearchParams {
-    const params = new URLSearchParams()
-
-    Object.entries(options).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) {
-          value.forEach((v) => params.append(key, v.toString()))
-        } else {
-          params.append(key, value.toString())
-        }
-      }
-    })
-
-    return params
-  }
-
-  private async makeRequest<T>(
-    url: string,
-    method: "GET" | "POST" = "GET",
-    headers: Record<string, string>,
-    body?: any,
-  ): Promise<T> {
-    const config: RequestInit = {
-      method,
-      headers,
-    }
-
-    if (body) {
-      if (body instanceof FormData) {
-        // For FormData, remove Content-Type to let browser set boundary
-        delete headers["Content-Type"]
-        config.body = body
-      } else {
-        config.body = JSON.stringify(body)
-      }
-    }
-
-    const response = await fetch(url, config)
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    return await response.json()
-  }
-
   async getDevices(
     credentials: EsperCredentials,
     params: PaginationParams & { search?: string } = {},
@@ -811,10 +745,12 @@ class EsperApiService {
     credentials: EsperCredentials,
     deviceId: string,
   ): Promise<EsperCommandResponse>
+
   async rebootDevice(
     credentials: EsperCredentials,
     deviceIds: string[],
   ): Promise<EsperCommandResponse>
+
   async rebootDevice(
     credentials: EsperCredentials,
     deviceIds: string | string[],
@@ -979,6 +915,72 @@ class EsperApiService {
       console.error("Error getting app versions:", error)
       throw error
     }
+  }
+
+  private getBaseUrl(tenantId: string) {
+    return `https://${tenantId}-api.esper.cloud/api`
+  }
+
+  private getHeaders(apiKey: string) {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    }
+  }
+
+  private buildUrl(
+    baseUrl: string,
+    path: string,
+    params?: URLSearchParams,
+  ): string {
+    const url = `${baseUrl}${path}`
+    return params?.toString() ? `${url}?${params}` : url
+  }
+
+  private buildParams(options: Record<string, any>): URLSearchParams {
+    const params = new URLSearchParams()
+
+    Object.entries(options).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        if (Array.isArray(value)) {
+          value.forEach((v) => params.append(key, v.toString()))
+        } else {
+          params.append(key, value.toString())
+        }
+      }
+    })
+
+    return params
+  }
+
+  private async makeRequest<T>(
+    url: string,
+    method: "GET" | "POST" = "GET",
+    headers: Record<string, string>,
+    body?: any,
+  ): Promise<T> {
+    const config: RequestInit = {
+      method,
+      headers,
+    }
+
+    if (body) {
+      if (body instanceof FormData) {
+        // For FormData, remove Content-Type to let browser set boundary
+        delete headers["Content-Type"]
+        config.body = body
+      } else {
+        config.body = JSON.stringify(body)
+      }
+    }
+
+    const response = await fetch(url, config)
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    return await response.json()
   }
 }
 

@@ -1,5 +1,7 @@
-import { AlertCircle, CheckCircle, Loader2, Camera } from "lucide-react"
+import { AlertCircle, Camera, CheckCircle, Loader2 } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
+
 import type { ResultsHeaderProps } from "./types"
 
 export function ResultsHeader({

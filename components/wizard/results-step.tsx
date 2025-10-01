@@ -1,48 +1,46 @@
 import {
   AlertCircle,
   CheckCircle,
-  Clock,
-  Loader2,
   ChevronDown,
   ChevronRight,
+  Clock,
+  Loader2,
 } from "lucide-react"
-import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  getCommandStatus,
   type EsperCommandResponse,
   type EsperCommandStatus,
   type EsperCredentials,
 } from "@/lib/esper-api"
 
 import {
+  type DeploymentStep,
+  DeviceCard,
+  ResultsHeader,
+  StepDeviceStatusDisplay,
+  StepErrorDisplay,
+} from "./detail-cards"
+import {
   executeDistributeStep,
-  executeVerifyStep,
   executeEnableStep,
-  executeValidateStep,
+  executeLauncherStep,
   executeLaunchStep,
   executeRebootStep,
   executeScreenshotStep,
-  executeLauncherStep,
+  executeValidateStep,
+  executeVerifyStep,
   type StepContext,
 } from "./results-steps"
-
-import {
-  ResultsHeader,
-  DeviceCard,
-  StepDeviceStatusDisplay,
-  StepErrorDisplay,
-  type DeploymentStep,
-} from "./detail-cards"
 
 interface ResultsStepProps {
   selectedDevices: string[]

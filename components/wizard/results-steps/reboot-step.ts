@@ -1,4 +1,5 @@
 import { esperApiService } from "@/lib/esper-api"
+
 import type { StepContext, StepResult } from "./types"
 
 export async function executeRebootStep(
@@ -8,7 +9,10 @@ export async function executeRebootStep(
 
   try {
     // Reboot all selected devices in a single API call
-    const response = await esperApiService.rebootDevice(credentials, selectedDevices)
+    const response = await esperApiService.rebootDevice(
+      credentials,
+      selectedDevices,
+    )
 
     return {
       success: true,

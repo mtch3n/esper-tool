@@ -4,10 +4,9 @@ import { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown } from "lucide-react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import { DeviceAppsDisplay } from "@/components/devices/device-apps-display"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import type { EsperDevice } from "@/lib/esper-api"
 import { getDeviceStatusInfo } from "@/lib/esper-api"
 

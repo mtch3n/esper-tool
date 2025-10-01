@@ -1,13 +1,10 @@
 "use client"
 
 import { Loader2 } from "lucide-react"
+
 import { Badge } from "@/components/ui/badge"
 import { useCredentials } from "@/hooks/use-credentials"
-import {
-  useDeviceApps,
-  extractAppInfo,
-  type AppInfo,
-} from "@/hooks/use-esper-queries"
+import { extractAppInfo, useDeviceApps } from "@/hooks/use-esper-queries"
 
 interface DeviceAppsDisplayProps {
   deviceId: string
