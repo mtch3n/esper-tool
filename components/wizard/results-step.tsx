@@ -286,11 +286,49 @@ export function ResultsStep({
             break
           }
           case "screenshot": {
-            const result = await executeScreenshotStep(
-              stepContext,
-              (deviceStatuses) =>
-                updateStepDeviceStatus(stepIndex, deviceStatuses),
-            )
+            let result: any
+            let attempt = 0
+            const maxRetries = 3
+
+            while (attempt <= maxRetries) {
+              try {
+                result = await executeScreenshotStep(
+                  stepContext,
+                  (deviceStatuses) =>
+                    updateStepDeviceStatus(stepIndex, deviceStatuses),
+                )
+
+                if (result.success) {
+                  // Success - break out of retry loop
+                  break
+                } else {
+                  // Failure - increment attempt and potentially retry
+                  attempt++
+                  if (attempt <= maxRetries) {
+                    // Update step with retry info
+                    updateStepState(stepIndex, {
+                      details: `Screenshot capture failed (attempt ${attempt}/${maxRetries + 1}), retrying...`,
+                    })
+                    // Wait 2 seconds before retry
+                    await new Promise(resolve => setTimeout(resolve, 2000))
+                  }
+                }
+              } catch (error) {
+                attempt++
+                if (attempt <= maxRetries) {
+                  // Update step with retry info
+                  updateStepState(stepIndex, {
+                    details: `Screenshot capture failed (attempt ${attempt}/${maxRetries + 1}), retrying...`,
+                  })
+                  // Wait 2 seconds before retry
+                  await new Promise(resolve => setTimeout(resolve, 2000))
+                } else {
+                  // Final attempt failed - re-throw error
+                  throw error
+                }
+              }
+            }
+
             stepResult = result.message
             stepSuccess = result.success
             if (!result.success && result.error) {
