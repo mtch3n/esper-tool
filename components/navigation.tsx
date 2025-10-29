@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Rocket, Settings, Smartphone } from "lucide-react"
+import { Home, Rocket, Settings, Smartphone, Package } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 const navigation = [
   { name: "Setup", href: "/setup", icon: Home },
   { name: "Devices", href: "/devices", icon: Smartphone },
+  { name: "APK", href: "/apk", icon: Package },
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 
